@@ -1,0 +1,11 @@
+DATA/
+__pycache__/
+.env
+*.ipynb
+*/__pycache__/
+pyenv/
+DATA/
+External Data/
+json_folder/
+Train_trial_1/
+Train_trial_2_with_mixtral_data/
