@@ -122,15 +122,15 @@ class NERTrainer():
                 print(f'F1 Score improved from {best_score} --> {validation_score}')
                 best_score = validation_score
                 
-                checkpoint_dir = os.path.join(model_output_dir,f'Checkpoints-Fold {self.fold}')
+                checkpoint_dir = os.path.join(model_output_dir,f'Checkpoint-Fold-{self.fold}-F1')
                 
                 if not os.path.exists(model_output_dir):
                     os.mkdir(model_output_dir)
                 if not os.path.exists(checkpoint_dir):
                     os.mkdir(os.path.join(checkpoint_dir))
                     
-                torch.save(self.model.state_dict(), os.path.join(checkpoint_dir,f'/model_best_f1.bin'))
-                print(f"Model Saved at {os.path.join(checkpoint_dir,f'/model_best_f1.bin')}")
+                self.model.save_pretrained(save_directory = checkpoint_dir)
+                print(f"Model Saved at {checkpoint_dir}")
                 
                 if validation_score > 0.95:
                     break
@@ -139,15 +139,15 @@ class NERTrainer():
                 print(f'Loss improved from {prev_best_loss} --> {validation_loss}')
                 prev_best_loss = validation_loss
                 
-                checkpoint_dir = os.path.join(model_output_dir,f'Checkpoints-Fold {self.fold}')
+                checkpoint_dir = os.path.join(model_output_dir,f'Checkpoints-Fold-{self.fold}-loss')
                 
                 if not os.path.exists(model_output_dir):
                     os.mkdir(model_output_dir)
                 if not os.path.exists(checkpoint_dir):
                     os.mkdir(os.path.join(checkpoint_dir))
                 
-                torch.save(self.model.state_dict(), os.path.join(checkpoint_dir,f'/model_best_loss.bin'))
-                print(f"Model Saved at {os.path.join(checkpoint_dir,f'/model_best_loss.bin')}")
+                self.model.save_pretrained(save_directory = checkpoint_dir)
+                print(f"Model Saved at {checkpoint_dir}")
                 
             else:
                 early_break_count +=1

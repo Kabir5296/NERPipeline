@@ -18,7 +18,7 @@ class CONFIG:
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     learning_rate = 0.000001
     weight_decay = 0.1
-    output_dir = 'Test' if train_debug else 'Train_trial_2_with_mixtral_data'
+    output_dir = 'Test' if train_debug else 'Train_Trial_3'
     num_epochs = 3 if train_debug else 100
     T_max = 500
     min_lr = learning_rate
