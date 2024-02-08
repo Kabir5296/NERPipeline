@@ -1,5 +1,6 @@
 import re, torch
 from torch.utils.data import Dataset
+from banglanlptoolkit import BnNLPNormalizer
 
 def create_id_label_conversion(unique_labels):
     id2label = {}
@@ -30,6 +31,8 @@ class preprocess():
     def remove_punctuations(self, text, label):
         if self.punct_remove:
             text = re.sub(r'[^\w\s]', '', text.strip())
+            text = re.sub(r'[|iœОабвгдезиклмнопрстуцчщь。いくけしたてなを一不业中丰为了产人们任优会使便保內其力务務区口可各后吸售回國地場孔家富専己市引心懂成手技抗护挽捷措撬改教文断新施晦普晰服术来果業標正洋流海涩清源漁焕然物現畅留発的目真瞳研碑磨社科章続练细育自艺节行表見见論质资距进遗重鑽門间难]','',text.strip())
+            text = re.sub(r'[Éàáãçéêíя–—，’]', '', text.strip())
             return re.sub(r'[_]', '', text.strip()) # if label == 'O' else text
         else:
             return text

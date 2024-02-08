@@ -9,3 +9,7 @@ nltk
 scikit-learn
 datasets
 seqeval
+banglanlptoolkit
+bnunicodenormalizer
+git+https://github.com/csebuetnlp/normalizer
+langdetect
