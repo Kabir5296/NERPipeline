@@ -13,7 +13,8 @@ class NERTrainer():
                  num_epochs,
                  id2label, 
                  output_dir,
-                 patience):
+                 patience,
+                 fold):
         self.model = model
         self.train_dataloader = train_dataloader
         self.valid_dataloader = valid_dataloader
@@ -23,6 +24,7 @@ class NERTrainer():
         self.output_dir = output_dir
         self.id2label = id2label
         self.patience = patience
+        self.fold = fold
 
     def clear_memories(self):
         torch.cuda.empty_cache()
@@ -112,6 +114,7 @@ class NERTrainer():
             validation_loss, validation_score = self.valid_one_epoch(epoch = epoch)
             
             print('='*150 + '\n')
+            print(f'Fold- {self.fold}, epoch- {epoch}')
             print(f'Training Loss for epoch: {epoch} is {training_loss}, F1 Score is: {training_score}')
             print(f'Validation Loss for epoch: {epoch} is {validation_loss}, F1 Score is: {validation_score}')
 
@@ -119,12 +122,15 @@ class NERTrainer():
                 print(f'F1 Score improved from {best_score} --> {validation_score}')
                 best_score = validation_score
                 
+                checkpoint_dir = os.path.join(model_output_dir,f'Checkpoints-Fold {self.fold}')
+                
                 if not os.path.exists(model_output_dir):
                     os.mkdir(model_output_dir)
-                if not os.path.exists(os.path.join(model_output_dir,f'Checkpoints')):
-                    os.mkdir(os.path.join(model_output_dir,f'Checkpoints'))
-                torch.save(self.model.state_dict(), os.path.join(model_output_dir,f'Checkpoints')+f'/model_epoch_{epoch}.bin')
-                print(f"Model Saved at {os.path.join(model_output_dir,f'Checkpoints')+f'/model_epoch_{epoch}.bin'}")
+                if not os.path.exists(checkpoint_dir):
+                    os.mkdir(os.path.join(checkpoint_dir))
+                    
+                torch.save(self.model.state_dict(), os.path.join(checkpoint_dir,f'/model_best_f1.bin'))
+                print(f"Model Saved at {os.path.join(checkpoint_dir,f'/model_best_f1.bin')}")
                 
                 if validation_score > 0.95:
                     break
@@ -133,12 +139,15 @@ class NERTrainer():
                 print(f'Loss improved from {prev_best_loss} --> {validation_loss}')
                 prev_best_loss = validation_loss
                 
+                checkpoint_dir = os.path.join(model_output_dir,f'Checkpoints-Fold {self.fold}')
+                
                 if not os.path.exists(model_output_dir):
                     os.mkdir(model_output_dir)
-                if not os.path.exists(os.path.join(model_output_dir,f'Checkpoints')):
-                    os.mkdir(os.path.join(model_output_dir,f'Checkpoints'))
-                torch.save(self.model.state_dict(), os.path.join(model_output_dir,f'Checkpoints')+f'/model_epoch_{epoch}.bin')
-                print(f"Model Saved at {os.path.join(model_output_dir,f'Checkpoints')+f'/model_epoch_{epoch}.bin'}")
+                if not os.path.exists(checkpoint_dir):
+                    os.mkdir(os.path.join(checkpoint_dir))
+                
+                torch.save(self.model.state_dict(), os.path.join(checkpoint_dir,f'/model_best_loss.bin'))
+                print(f"Model Saved at {os.path.join(checkpoint_dir,f'/model_best_loss.bin')}")
                 
             else:
                 early_break_count +=1
@@ -148,7 +157,13 @@ class NERTrainer():
                     break
                             
             print('\n' + '='*150)
+        
         print(f'Training over with best loss: {prev_best_loss} and best F1: {best_score}')
-        self.model.save_pretrained(save_directory = model_output_dir)
+        
+        fold_dir = os.path.join(model_output_dir, f'Fold-{self.fold}')
+        if not os.path.exists(os.path.join(model_output_dir, f'Fold-{self.fold}')):
+            os.mkdir(fold_dir)
+        self.model.save_pretrained(save_directory = fold_dir)
+        
         print(f'Model saved at {model_output_dir}')
         print('='*150)
