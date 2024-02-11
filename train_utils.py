@@ -123,7 +123,7 @@ class NERTrainer():
             
             validation_loss, validation_score = self.valid_one_epoch(epoch = epoch)
             
-            print('='*150 + '\n')
+            print('='*170 + '\n')
             print(f'Fold- {self.fold}, epoch- {epoch}')
             print(f'Training Loss for epoch: {epoch} is {training_loss}, F1 Score is: {training_score}')
             print(f'Validation Loss for epoch: {epoch} is {validation_loss}, F1 Score is: {validation_score}')
@@ -166,7 +166,7 @@ class NERTrainer():
                     print(f'Early Stopping')
                     break
                             
-            print('\n' + '='*150)
+            print('\n' + '='*170)
         
         print(f'Training over with best loss: {prev_best_loss} and best F1: {best_score}')
         
@@ -176,4 +176,4 @@ class NERTrainer():
         self.model.save_pretrained(save_directory = fold_dir)
         
         print(f'Model saved at {model_output_dir}')
-        print('='*150)
+        print('='*170)
