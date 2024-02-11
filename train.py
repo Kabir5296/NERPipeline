@@ -1,5 +1,5 @@
 import pandas as pd
-import json, torch, gc
+import json, torch, gc, os, glob
 from sklearn.model_selection import train_test_split
 from transformers import AutoTokenizer, BertForTokenClassification
 from torch.utils.data import DataLoader
@@ -9,16 +9,16 @@ from train_utils import NERTrainer
 
 class CONFIG:
     train_debug = False
-    seeds = [0, 42, 43, 50] # Random seeds for each fold
-    dataset_path = ['DATA/processed_train.json','External Data/mixtral-8x7b-v1.json', 'External Data/pii_Extended.json']
-    model_path = 'dslim/bert-base-NER'
+    seeds = [42] #[0, 42, 43, 50] # Random seeds for each fold
+    dataset_path = ['DATA/processed_train.json','External Data']
+    model_path = "microsoft/deberta-v3-base" #'dslim/bert-base-NER'
     stopword_dir = 'json_folder/stopwords.json'
     train_batch_size = 12
     valid_batch_size = 12
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     learning_rate = 0.000001
     weight_decay = 0.1
-    output_dir = 'Test' if train_debug else 'Train_Trial_3'
+    output_dir = 'Test' if train_debug else 'Models/Train_Deberta_V3'
     num_epochs = 3 if train_debug else 100
     T_max = 500
     min_lr = learning_rate
@@ -32,7 +32,12 @@ with open(CONFIG.stopword_dir,'r') as f:
 # Load Data from CSV
 data = pd.DataFrame()
 for data_path in CONFIG.dataset_path:
-    data = pd.concat([data, pd.DataFrame({'tokens':pd.read_json(data_path)['tokens'].tolist(), 'labels': pd.read_json(data_path)['labels'].tolist()})])
+    if os.path.isfile(data_path):
+        data = pd.concat([data, pd.DataFrame({'tokens':pd.read_json(data_path)['tokens'].tolist(), 'labels': pd.read_json(data_path)['labels'].tolist()})])
+    elif os.path.isdir(data_path):
+        files = glob.glob(data_path + '/*')
+        for file in files:
+            data = pd.concat([data, pd.DataFrame({'tokens':pd.read_json(file)['tokens'].tolist(), 'labels': pd.read_json(file)['labels'].tolist()})])
 
 # Calculate id2label and label2id using unique labels from dataframe
 unique_labels = pd.DataFrame.explode(data,column='labels').labels.unique()

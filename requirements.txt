@@ -13,3 +13,4 @@ banglanlptoolkit
 bnunicodenormalizer
 git+https://github.com/csebuetnlp/normalizer
 langdetect
+sentencepiece

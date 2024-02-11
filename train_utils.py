@@ -2,6 +2,7 @@ from tqdm import tqdm
 import torch, gc, os
 import numpy as np
 from seqeval.metrics import f1_score
+from seqeval.metrics import recall_score, precision_score
 
 class NERTrainer():
     def __init__(self, 
@@ -38,6 +39,15 @@ class NERTrainer():
         score = f1_score(y_true = true_labels, y_pred=true_predictions, average='macro')
         return score
     
+    def compute_f5_score(self, logits, labels):
+        predictions = logits.argmax(-1).numpy()
+        true_labels = [[ self.id2label[l] for l in label if l != -100] for label in labels.numpy()]
+        true_predictions = [[self.id2label[p] for (p, l) in zip(prediction, label) if l != -100] for prediction, label in zip(predictions, labels.numpy())]
+        recall = recall_score(true_labels, true_predictions)
+        precision = precision_score(true_labels, true_predictions)
+        f5_score = (1 + 5*5) * recall * precision / (5*5*precision + recall)
+        return f5_score
+    
     def train_one_epoch(self, epoch):
         self.model.train()
         
@@ -55,7 +65,7 @@ class NERTrainer():
             self.optimizer.step()
             self.optimizer.zero_grad()
             
-            scores.append(self.compute_metrics(logits=logits.detach().cpu(),
+            scores.append(self.compute_f5_score(logits=logits.detach().cpu(),
                                                labels= data['labels'].detach().cpu()))
             
             if self.scheduler is not None:
@@ -88,7 +98,7 @@ class NERTrainer():
                 
             running_loss += loss.item()
             epoch_loss = running_loss/(index+1)
-            scores.append(self.compute_metrics(logits=logits.detach().cpu(),
+            scores.append(self.compute_f5_score(logits=logits.detach().cpu(),
                             labels= data['labels'].detach().cpu()))
             
             score = sum(scores)/len(scores)
