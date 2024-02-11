@@ -1,7 +1,7 @@
 import pandas as pd
 import json, torch, gc, os, glob
 from sklearn.model_selection import train_test_split
-from transformers import AutoTokenizer, BertForTokenClassification
+from transformers import AutoTokenizer, BertForTokenClassification, AutoModelForTokenClassification
 from torch.utils.data import DataLoader
 from data_utils import create_id_label_conversion, CustomDataCollator, NERDataset
 from torch.optim import AdamW, lr_scheduler
@@ -13,8 +13,8 @@ class CONFIG:
     dataset_path = ['DATA/processed_train.json','External Data']
     model_path = "microsoft/deberta-v3-base" #'dslim/bert-base-NER'
     stopword_dir = 'json_folder/stopwords.json'
-    train_batch_size = 12
-    valid_batch_size = 12
+    train_batch_size = 2
+    valid_batch_size = 2
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     learning_rate = 2e-5
     weight_decay = 0.1
@@ -22,7 +22,7 @@ class CONFIG:
     num_epochs = 3 if train_debug else 100
     T_max = 500
     min_lr = learning_rate
-    max_length = 128 if train_debug else 512
+    max_length = 128 if train_debug else 1024
     patience = 9
     
 # Load NLTK Stopwords for English
@@ -54,7 +54,7 @@ for fold, seed in enumerate(CONFIG.seeds):
     # Define and initialize necessary modules
     tokenizer = AutoTokenizer.from_pretrained(CONFIG.model_path)    
     data_collator_fn = CustomDataCollator(tokenizer=tokenizer, device=CONFIG.device)
-    model = BertForTokenClassification.from_pretrained(pretrained_model_name_or_path=CONFIG.model_path,
+    model = AutoModelForTokenClassification.from_pretrained(pretrained_model_name_or_path=CONFIG.model_path,
                                     id2label = id2label,
                                     label2id = label2id,
                                     num_labels = num_labels,
