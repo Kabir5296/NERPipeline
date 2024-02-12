@@ -1,8 +1,11 @@
 from tqdm import tqdm
 import torch, gc, os
 import numpy as np
-from seqeval.metrics import f1_score
-from seqeval.metrics import recall_score, precision_score
+# from seqeval.metrics import f1_score
+# from seqeval.metrics import recall_score, precision_score
+from sklearn.metrics import recall_score, precision_score, f1_score
+from sklearn.preprocessing import MultiLabelBinarizer
+binarizer = MultiLabelBinarizer()
 
 class NERTrainer():
     def __init__(self, 
@@ -33,20 +36,18 @@ class NERTrainer():
         
     def compute_metrics(self,logits, labels):
         predictions = logits.argmax(-1).numpy()
-        true_labels = [[ self.id2label[l] for l in label if l != -100] for label in labels.numpy()]
-        true_predictions = [[self.id2label[p] for (p, l) in zip(prediction, label) if l != -100] for prediction, label in zip(predictions, labels.numpy())]
+        true_labels = [label for label in labels.numpy().flatten() if label != -100 and label != 0]
+        true_predictions = [prediction for prediction, label in zip(predictions.flatten(), labels.numpy().flatten()) if label !=-100 and label != 0]
         
-        score = f1_score(y_true = true_labels, y_pred=true_predictions, average='macro')
-        return score
-    
-    def compute_f5_score(self, logits, labels):
-        predictions = logits.argmax(-1).numpy()
-        true_labels = [[ self.id2label[l] for l in label if l != -100] for label in labels.numpy()]
-        true_predictions = [[self.id2label[p] for (p, l) in zip(prediction, label) if l != -100] for prediction, label in zip(predictions, labels.numpy())]
-        recall = recall_score(true_labels, true_predictions)
-        precision = precision_score(true_labels, true_predictions)
+        score = f1_score(y_true = true_labels, y_pred=true_predictions, average='micro')
+        if score is None:
+            score=0.0
+        precision = precision_score(y_true = true_labels, y_pred = true_predictions, average = 'micro')
+        recall = recall_score(y_true = true_labels, y_pred = true_predictions, average = 'micro')
         f5_score = (1 + 5*5) * recall * precision / (5*5*precision + recall)
-        return f5_score
+        if f5_score is None:
+            f5_score=0.0
+        return {'score':score, 'f5_score':f5_score}
     
     def train_one_epoch(self, epoch):
         self.model.train()
@@ -54,7 +55,7 @@ class NERTrainer():
         running_loss = 0
         progress_bar = tqdm(enumerate(self.train_dataloader),total=len(self.train_dataloader))
         scores = []
-        
+        f5_scores = []
         for step, data in progress_bar:
             out = self.model(**data)
             loss = out.loss
@@ -65,8 +66,11 @@ class NERTrainer():
             self.optimizer.step()
             self.optimizer.zero_grad()
             
-            scores.append(self.compute_f5_score(logits=logits.detach().cpu(),
-                                               labels= data['labels'].detach().cpu()))
+            score_dict = self.compute_metrics(logits=logits.detach().cpu(),
+                                               labels= data['labels'].detach().cpu())
+            
+            scores.append(score_dict['score'])
+            f5_scores.append(score_dict['f5_score'])
             
             if self.scheduler is not None:
                 self.scheduler.step()
@@ -75,14 +79,16 @@ class NERTrainer():
             epoch_loss = running_loss/(step+1)
             
             score = sum(scores)/len(scores)
+            f5_score = sum(f5_scores)/len(f5_scores)
             progress_bar.set_postfix(Epoch = epoch,
                                     TrainingLoss = epoch_loss,
-                                    F1 = score
+                                    F1 = score,
+                                    F5 = f5_score,
                                     )
             
         del out, loss, logits
         self.clear_memories()
-        return epoch_loss, score
+        return epoch_loss, score, f5_score
     
     def valid_one_epoch(self, epoch):
         self.model.eval()
@@ -90,6 +96,7 @@ class NERTrainer():
         running_loss = 0
         progress_bar = tqdm(enumerate(self.valid_dataloader),total=len(self.valid_dataloader))
         scores = []
+        f5_scores = []
         for index, data in progress_bar:
             with torch.no_grad():
                 out = self.model(**data)
@@ -98,37 +105,61 @@ class NERTrainer():
                 
             running_loss += loss.item()
             epoch_loss = running_loss/(index+1)
-            scores.append(self.compute_f5_score(logits=logits.detach().cpu(),
-                            labels= data['labels'].detach().cpu()))
+            
+            scores.append(self.compute_metrics(logits=logits.detach().cpu(),
+                                               labels= data['labels'].detach().cpu()))[0]
+            
+            f5_scores.append(self.compute_metrics(logits=logits.detach().cpu(),
+                                               labels= data['labels'].detach().cpu()))[1]
             
             score = sum(scores)/len(scores)
+            f5_score = sum(f5_scores)/len(f5_scores)
             progress_bar.set_postfix(Epoch = epoch,
                                     ValidationLoss = epoch_loss,
-                                    F1 = score
+                                    F1 = score,
+                                    F5 = f5_score,
                                     )
             
         del out, loss, logits
         self.clear_memories()
-        return epoch_loss, score
+        return epoch_loss, score, f5_score
 
     def __call__(self):
         print('\n')
         prev_best_loss = np.inf
         best_score = -np.inf
+        best_f5_score = -np.inf
         model_output_dir=self.output_dir
         
         early_break_count = 0
         for epoch in range(self.num_epochs):
-            training_loss, training_score = self.train_one_epoch(epoch = epoch)
+            training_loss, training_score, training_f5 = self.train_one_epoch(epoch = epoch)
             
-            validation_loss, validation_score = self.valid_one_epoch(epoch = epoch)
+            validation_loss, validation_score, validation_f5 = self.valid_one_epoch(epoch = epoch)
             
             print('='*170 + '\n')
             print(f'Fold- {self.fold}, epoch- {epoch}')
             print(f'Training Loss for epoch: {epoch} is {training_loss}, F1 Score is: {training_score}')
             print(f'Validation Loss for epoch: {epoch} is {validation_loss}, F1 Score is: {validation_score}')
 
-            if validation_score > best_score:
+            if validation_f5 > best_f5_score:
+                print(f'F1 Score improved from {best_f5_score} --> {validation_f5}')
+                best_f5_score = validation_f5
+                
+                checkpoint_dir = os.path.join(model_output_dir,f'Checkpoint-Fold-{self.fold}-F5')
+                
+                if not os.path.exists(model_output_dir):
+                    os.mkdir(model_output_dir)
+                if not os.path.exists(checkpoint_dir):
+                    os.mkdir(os.path.join(checkpoint_dir))
+                    
+                self.model.save_pretrained(save_directory = checkpoint_dir)
+                print(f"Model Saved at {checkpoint_dir}")
+                
+                if validation_f5 > 0.95:
+                    break
+            
+            elif validation_score > best_score:
                 print(f'F1 Score improved from {best_score} --> {validation_score}')
                 best_score = validation_score
                 

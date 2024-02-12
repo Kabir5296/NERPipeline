@@ -15,3 +15,5 @@ git+https://github.com/csebuetnlp/normalizer
 langdetect
 sentencepiece
 protobuf
+evaluate
+accelerate 
