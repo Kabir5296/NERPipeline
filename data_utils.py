@@ -31,11 +31,13 @@ class preprocess():
     def remove_punctuations(self, text, label):
         if self.punct_remove:
             text = re.sub(r'[^\w\s]', '', text.strip())
-            text = re.sub(r'[|iœОабвгдезиклмнопрстуцчщь。いくけしたてなを一不业中丰为了产人们任优会使便保內其力务務区口可各后吸售回國地場孔家富専己市引心懂成手技抗护挽捷措撬改教文断新施晦普晰服术来果業標正洋流海涩清源漁焕然物現畅留発的目真瞳研碑磨社科章続练细育自艺节行表見见論质资距进遗重鑽門间难]','',text.strip())
-            text = re.sub(r'[Éàáãçéêíя–—，’]', '', text.strip())
             return re.sub(r'[_]', '', text.strip()) # if label == 'O' else text
         else:
             return text
+    
+    def clean_data(self, text):
+        text = re.sub(r'[|iœОабвгдезиклмнопрстуцчщь。いくけしたてなを一不业中丰为了产人们任优会使便保內其力务務区口可各后吸售回國地場孔家富専己市引心懂成手技抗护挽捷措撬改教文断新施晦普晰服术来果業標正洋流海涩清源漁焕然物現畅留発的目真瞳研碑磨社科章続练细育自艺节行表見见論质资距进遗重鑽門间难]','',text.strip())
+        return re.sub(r'[Éàáãçéêíя–—，’]', '', text.strip())
     
     def remove_stopwords(self, text, label):
         if not self.stopword_remove:
@@ -62,9 +64,9 @@ class preprocess():
         
     def __call__(self, tokens, labels):
         if self.to_lower:
-            tokens = [self.remove_punctuations(text, label).lower() for text, label in zip(tokens, labels)]
+            tokens = [self.remove_punctuations(self.clean_data(text), label).lower() for text, label in zip(tokens, labels)]
         else:
-            tokens = [self.remove_punctuations(text, label) for text, label in zip(tokens, labels)]
+            tokens = [self.remove_punctuations(self.clean_data(text), label) for text, label in zip(tokens, labels)]
         
         tokens = [self.remove_stopwords(text, label) for text, label in zip(tokens, labels)]
         tokens, labels = self.strip_empty_strings(tokens, labels)
@@ -146,14 +148,22 @@ class NERDataset(Dataset):
                  label2id,
                  max_length,
                  tokenizer,
-                 stopwords
+                 stopwords,
+                 stopword_remove=False,
+                 punct_remove=False,
                  ):
         
         self.label2id = label2id
         self.tokens = data.tokens
         self.labels = data.labels
         self.max_length = max_length
-        self.preprocess_fn = preprocess(label2id=self.label2id,stopword_dict=stopwords)
+        self.preprocess_fn = preprocess(label2id=self.label2id,
+                                        stopword_dict=stopwords,
+                                        stopword_remove=stopword_remove,
+                                        punct_remove=punct_remove,
+                                        to_lower=True,
+                                        strip=True,
+                                        )
         self.tokenizer_fn = tokenize_data(tokenizer = tokenizer, max_length=self.max_length, truncation=True)
     
     def __len__(self):

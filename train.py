@@ -62,10 +62,24 @@ for fold, seed in enumerate(CONFIG.seeds):
                                     ).to(CONFIG.device)
 
     # Initialize Dataset and DataLoader
-    train_dataset = NERDataset(train_data, label2id=label2id, max_length=CONFIG.max_length, tokenizer=tokenizer, stopwords=stopwords)
+    train_dataset = NERDataset(train_data, 
+                               label2id=label2id, 
+                               max_length=CONFIG.max_length, 
+                               tokenizer=tokenizer, 
+                               stopwords=stopwords,
+                               stopword_remove=False,
+                               punct_remove=False,
+                               )
     train_dataloader = DataLoader(train_dataset, batch_size=CONFIG.train_batch_size, collate_fn=data_collator_fn, shuffle=True, pin_memory=False)
 
-    valid_dataset = NERDataset(valid_data, label2id=label2id, max_length=CONFIG.max_length, tokenizer=tokenizer, stopwords=stopwords)
+    valid_dataset = NERDataset(train_data, 
+                               label2id=label2id, 
+                               max_length=CONFIG.max_length, 
+                               tokenizer=tokenizer, 
+                               stopwords=stopwords,
+                               stopword_remove=False,
+                               punct_remove=False,
+                               )
     valid_dataloader = DataLoader(valid_dataset, batch_size=CONFIG.valid_batch_size, collate_fn=data_collator_fn, shuffle=False, pin_memory=False)
 
     print('\n'+'='*170)

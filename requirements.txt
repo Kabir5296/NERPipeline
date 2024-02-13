@@ -17,3 +17,4 @@ sentencepiece
 protobuf
 evaluate
 accelerate 
+python-dotenv

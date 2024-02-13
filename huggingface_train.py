@@ -1,7 +1,3 @@
-TRAINING_MODEL_PATH = "microsoft/deberta-v3-base"
-TRAINING_MAX_LENGTH = 1024
-OUTPUT_DIR = "Models"
-
 import json
 import argparse
 from itertools import chain
@@ -13,6 +9,13 @@ from transformers import AutoModelForTokenClassification, DataCollatorForTokenCl
 import evaluate
 from datasets import Dataset, features
 import numpy as np
+
+class CONFIG:
+    model_path = "microsoft/deberta-v3-base"
+    max_length = 1024
+    output_dir = "Models"
+    data_path = 'External Data'
+
 
 data = json.load(open("External Data/moredata_dataset_fixed.json"))
 
@@ -89,7 +92,7 @@ def tokenize(example, tokenizer, label2id, max_length):
 
     return {**tokenized, "labels": token_labels, "length": length}
 
-tokenizer = AutoTokenizer.from_pretrained(TRAINING_MODEL_PATH)
+tokenizer = AutoTokenizer.from_pretrained(model_path)
 
 ds = Dataset.from_dict({
     # "full_text": [x["full_text"] for x in data],
@@ -98,7 +101,7 @@ ds = Dataset.from_dict({
     "trailing_whitespace": [x["trailing_whitespace"] for x in data],
     "provided_labels": [x["labels"] for x in data],
 })
-ds = ds.map(tokenize, fn_kwargs={"tokenizer": tokenizer, "label2id": label2id, "max_length": TRAINING_MAX_LENGTH}, num_proc=10)
+ds = ds.map(tokenize, fn_kwargs={"tokenizer": tokenizer, "label2id": label2id, "max_length": max_length}, num_proc=10)
 # ds = ds.class_encode_column("group")
 
 x = ds[0]
@@ -143,7 +146,7 @@ def compute_metrics(p, all_labels):
     return results['f1']
 
 model = AutoModelForTokenClassification.from_pretrained(
-    TRAINING_MODEL_PATH,
+    model_path,
     num_labels=len(all_labels),
     id2label=id2label,
     label2id=label2id,
@@ -157,7 +160,7 @@ train_ds = ds.train_test_split(test_size=0.2, seed=42) # cannot use stratify_by_
 
 # I actually chose to not use any validation set. This is only for the model I use for submission.
 args = TrainingArguments(
-    output_dir=OUTPUT_DIR, 
+    output_dir=output_dir, 
     fp16=True,
     learning_rate=2e-5,
     num_train_epochs=10,
