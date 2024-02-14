@@ -36,7 +36,7 @@ class CONFIG:
     data_path = 'External Data'
     num_proc = 10
     learning_rate = 5e-6
-    num_epochs = 5
+    num_epochs = 15
     train_batch_size = 2
     eval_batch_size = 2
     grad_accu = 4
@@ -100,7 +100,7 @@ dataset = dataset.train_test_split(test_size=0.2, seed=42)
 # Printing Training Information
 print('+'*90+'\n')
 print(f'Starting Training....')
-print(f'Train Data Samples: {len(dataset['train'])}, Test Data Samples: {len(dataset['test'])},')
+print(f"Train Data Samples: {len(dataset['train'])}, Test Data Samples: {len(dataset['test'])}.")
 if CONFIG.run_checkpoint:
     print(f'Training Resuming from "{CONFIG.checkpoint_dir}"')
 print(f'Training will run for {CONFIG.num_epochs} epochs.')
