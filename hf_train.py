@@ -9,16 +9,33 @@ import numpy as np
 from tqdm import tqdm
 from seqeval.metrics import recall_score, precision_score
 from dotenv import load_dotenv
+from data_utils import preprocess
+
+text_clean = preprocess()
 
 tqdm.pandas()
 load_dotenv()
+
+def get_last_checkpoint(output_dir):
+    checkpoints = []
+    for folder in os.listdir(output_dir):
+        if folder.startswith('checkpoint'):
+            checkpoints.append(int(folder.split('-')[1]))
+    try:
+        last_checkpoint = f'checkpoint-{max(checkpoints)}'
+    except:
+        raise ValueError(f"The output directory '{CONFIG.output_dir}' doesn't have any checkpoints. Please set 'run_checkpoint' to False for training to start from scratch.")
+    return last_checkpoint
+
 class CONFIG:
+    run_checkpoint = True
+    output_dir = "Models/cleaned_data_model"
+    checkpoint_dir = os.path.join(output_dir, get_last_checkpoint(output_dir)) if run_checkpoint else 'null'
     model_path = "microsoft/deberta-v3-base"
     max_length = 1024
-    output_dir = "Models"
     data_path = 'External Data'
     num_proc = 10
-    learning_rate = 2e-5
+    learning_rate = 5e-6
     num_epochs = 5
     train_batch_size = 2
     eval_batch_size = 2
@@ -51,7 +68,7 @@ def tokenize(example, tokenizer, label2id, max_length):
     labels = []
 
     for t, l, ws in zip(example["tokens"], example["labels"], example["trailing_whitespace"]):
-        text.append(t)
+        text.append(text_clean.clean_data(text=t))
         labels.extend([l] * len(t))
         if ws:
             text.append(" ")
@@ -80,9 +97,18 @@ def tokenize(example, tokenizer, label2id, max_length):
 dataset = dataset.map(tokenize, fn_kwargs={"tokenizer": tokenizer, "label2id": label2id, "max_length": CONFIG.max_length}, num_proc=CONFIG.num_proc)
 dataset = dataset.train_test_split(test_size=0.2, seed=42) 
 
+# Printing Training Information
+print('+'*90+'\n')
+print(f'Starting Training....')
+print(f'Train Data Samples: {len(dataset['train'])}, Test Data Samples: {len(dataset['test'])},')
+if CONFIG.run_checkpoint:
+    print(f'Training Resuming from "{CONFIG.checkpoint_dir}"')
+print(f'Training will run for {CONFIG.num_epochs} epochs.')
+print('\n'+'+'*90)
+
 # Training Preparation
 model = AutoModelForTokenClassification.from_pretrained(
-    CONFIG.model_path,
+    CONFIG.model_path if not CONFIG.run_checkpoint else CONFIG.checkpoint_dir,
     num_labels=num_labels,
     id2label=id2label,
     label2id=label2id,
@@ -103,8 +129,8 @@ args = TrainingArguments(
     save_total_limit=3,
     logging_steps=CONFIG.log_steps,
     lr_scheduler_type=CONFIG.scheduler,
-    metric_for_best_model="f1",
-    greater_is_better=True,
+    metric_for_best_model="loss",
+    greater_is_better=False,
     warmup_ratio=0.1,
     weight_decay=0.01,
     dataloader_pin_memory=False,
@@ -126,7 +152,7 @@ def compute_metrics(p):
     
     recall = recall_score(true_labels, true_predictions)
     precision = precision_score(true_labels, true_predictions)
-    f5_score = (1 + 5*5) * recall * precision / (5*5*precision + recall)
+    f5_score = (1.0 + 5.0*5.0) * recall * precision / (5.0*5.0*precision + recall)
     
     results = {
         'recall': recall,
@@ -146,7 +172,7 @@ trainer = Trainer(
     # compute_metrics=compute_metrics,
 )
 
-trainer.train()
+trainer.train(resume_from_checkpoint=CONFIG.run_checkpoint)
 
 # Push to HF
 trainer.model.push_to_hub(CONFIG.hf_repo, token = CONFIG.token)
