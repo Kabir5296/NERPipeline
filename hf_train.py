@@ -10,7 +10,9 @@ from tqdm import tqdm
 from seqeval.metrics import recall_score, precision_score
 from dotenv import load_dotenv
 from data_utils import preprocess
+import evaluate
 
+metric = evaluate.load("seqeval")
 text_clean = preprocess()
 
 tqdm.pandas()
@@ -35,14 +37,14 @@ class CONFIG:
     max_length = 1024
     data_path = 'External Data'
     num_proc = 10
-    learning_rate = 5e-6
-    num_epochs = 15
+    learning_rate = 1e-6
+    num_epochs = 20
     train_batch_size = 2
     eval_batch_size = 2
     grad_accu = 4
     log_steps = 500
     scheduler = 'cosine'
-    hf_repo = 'kabir5297/Deberta_Huge_data'
+    hf_repo = 'kabir5297/Deberta_Huge_data_V2'
     token = os.getenv('HF_TOKEN')
 
 # Load Data
@@ -129,37 +131,28 @@ args = TrainingArguments(
     save_total_limit=3,
     logging_steps=CONFIG.log_steps,
     lr_scheduler_type=CONFIG.scheduler,
-    metric_for_best_model="loss",
-    greater_is_better=False,
+    # metric_for_best_model="loss",
+    metric_for_best_model="f1",
+    greater_is_better=True,
     warmup_ratio=0.1,
     weight_decay=0.01,
     dataloader_pin_memory=False,
 )
 
-def compute_metrics(p):
-    predictions, labels = p
-    predictions = np.argmax(predictions, axis=2)
+def compute_metrics(eval_preds):
+    logits, labels = eval_preds
+    predictions = np.argmax(logits, axis=-1)
 
-    # Remove ignored index (special tokens)
+    # Remove ignored index (special tokens) and convert to labels
+    true_labels = [[id2label[l] for l in label if l != -100] for label in labels]
     true_predictions = [
         [id2label[p] for (p, l) in zip(prediction, label) if l != -100]
         for prediction, label in zip(predictions, labels)
     ]
-    true_labels = [
-        [id2label[l] for (p, l) in zip(prediction, label) if l != -100]
-        for prediction, label in zip(predictions, labels)
-    ]
-    
-    recall = recall_score(true_labels, true_predictions)
-    precision = precision_score(true_labels, true_predictions)
-    f5_score = (1.0 + 5.0*5.0) * recall * precision / (5.0*5.0*precision + recall)
-    
-    results = {
-        'recall': recall,
-        'precision': precision,
-        'f1': f5_score
-    }
-    return results['f1']
+    all_metrics = metric.compute(predictions=true_predictions, references=true_labels)
+    precision = all_metrics['overall_precision']
+    recall = all_metrics['overall_recall']
+    return {'f1': ((1 + 5*5) * recall * precision / (5*5*precision + recall))}
 
 # Trainer Initialize
 trainer = Trainer(
@@ -169,7 +162,7 @@ trainer = Trainer(
     eval_dataset=dataset['test'],
     data_collator=collator, 
     tokenizer=tokenizer,
-    # compute_metrics=compute_metrics,
+    compute_metrics=compute_metrics,
 )
 
 trainer.train(resume_from_checkpoint=CONFIG.run_checkpoint)
