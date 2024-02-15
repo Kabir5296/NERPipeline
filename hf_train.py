@@ -1,5 +1,5 @@
-import glob, os
-from functools import partial
+import glob, os, torch
+import torch.nn.functional as F
 import pandas as pd
 from transformers import AutoTokenizer, Trainer, TrainingArguments
 from transformers import AutoModelForTokenClassification, DataCollatorForTokenClassification
@@ -7,7 +7,6 @@ from data_utils import create_id_label_conversion
 from datasets import Dataset, features
 import numpy as np
 from tqdm import tqdm
-from seqeval.metrics import recall_score, precision_score
 from dotenv import load_dotenv
 from data_utils import preprocess
 import evaluate
@@ -30,10 +29,10 @@ def get_last_checkpoint(output_dir):
     return last_checkpoint
 
 class CONFIG:
-    run_checkpoint = True
-    output_dir = "Models/cleaned_data_model"
+    run_checkpoint = False
+    output_dir = "Models/Cleaned_Data_DebertaPII"
     checkpoint_dir = os.path.join(output_dir, get_last_checkpoint(output_dir)) if run_checkpoint else 'null'
-    model_path = "microsoft/deberta-v3-base"
+    model_path = 'lakshyakh93/deberta_finetuned_pii' #"microsoft/deberta-v3-base"
     max_length = 1024
     data_path = 'External Data'
     num_proc = 10
@@ -44,7 +43,7 @@ class CONFIG:
     grad_accu = 4
     log_steps = 500
     scheduler = 'cosine'
-    hf_repo = 'kabir5297/Deberta_Huge_data_V2'
+    hf_repo = 'kabir5297/DebertaPII'
     token = os.getenv('HF_TOKEN')
 
 # Load Data
@@ -52,7 +51,8 @@ json_files = glob.glob(CONFIG.data_path+'/*.json')
 data = pd.DataFrame()
 for file in json_files:
     data = pd.concat([data, pd.read_json(file)[['tokens','trailing_whitespace','labels']]], ignore_index=True)
-    
+
+# Filter out data containing no positive labels
 data['check_data'] = data.labels.progress_apply(lambda x: len(pd.Series(x).unique().tolist()))
 data = data[data.check_data > 1]
 
@@ -153,6 +153,17 @@ def compute_metrics(eval_preds):
     precision = all_metrics['overall_precision']
     recall = all_metrics['overall_recall']
     return {'f1': ((1 + 5*5) * recall * precision / (5*5*precision + recall))}
+
+# Rewrite compute loss for weighted loss in Trainer class
+class Trainer(Trainer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.weight =torch.from_numpy(np.array([0.005,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]).astype(np.float32)).cuda()
+        
+    def compute_loss(self, model, inputs,return_outputs=False):
+        outputs = model(**inputs)
+        loss=F.cross_entropy(outputs.logits.flatten(0,1), inputs.labels.flatten(), weight=self.weight, ignore_index=-100,reduction='mean', label_smoothing=0.0)
+        return (loss, outputs) if return_outputs else loss
 
 # Trainer Initialize
 trainer = Trainer(
