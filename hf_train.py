@@ -1,4 +1,4 @@
-import glob, os, torch
+import glob, os, torch, wandb
 import torch.nn.functional as F
 import pandas as pd
 from transformers import AutoTokenizer, Trainer, TrainingArguments
@@ -29,7 +29,7 @@ def get_last_checkpoint(output_dir):
     return last_checkpoint
 
 class CONFIG:
-    run_checkpoint = False
+    run_checkpoint = True
     output_dir = "Models/Cleaned_Data_DebertaPII"
     checkpoint_dir = os.path.join(output_dir, get_last_checkpoint(output_dir)) if run_checkpoint else 'null'
     model_path = 'lakshyakh93/deberta_finetuned_pii' #"microsoft/deberta-v3-base"
@@ -45,6 +45,15 @@ class CONFIG:
     scheduler = 'cosine'
     hf_repo = 'kabir5297/DebertaPII'
     token = os.getenv('HF_TOKEN')
+
+# set the wandb project where this run will be logged
+os.environ["WANDB_PROJECT"]="PII_Training"
+
+# save your trained model checkpoint to wandb
+os.environ["WANDB_LOG_MODEL"]="false"
+
+# turn off watch to log faster
+os.environ["WANDB_WATCH"]="false"
 
 # Load Data
 json_files = glob.glob(CONFIG.data_path+'/*.json')
@@ -126,7 +135,7 @@ args = TrainingArguments(
     per_device_train_batch_size=CONFIG.train_batch_size,
     per_device_eval_batch_size=CONFIG.eval_batch_size,
     gradient_accumulation_steps=CONFIG.grad_accu,
-    report_to="none",
+    report_to="wandb",
     evaluation_strategy="steps",
     save_total_limit=3,
     logging_steps=CONFIG.log_steps,
